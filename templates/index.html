@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Verificador de Tarjetas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Orbitron', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      background: radial-gradient(circle at center, #0f0f0f, #000000);
+      overflow-y: auto;
+      color: #ffffff;
+      padding: 40px 20px;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0;
+      width: 200%;
+      height: 200%;
+      background: repeating-radial-gradient(circle, #ffffff10 1px, transparent 2px);
+      animation: moveStars 100s linear infinite;
+      z-index: 0;
+    }
+    @keyframes moveStars {
+      0% { transform: translate(0, 0); }
+      100% { transform: translate(-50%, -50%); }
+    }
+    .container {
+      position: relative;
+      z-index: 1;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      box-shadow: 0 0 40px rgba(0, 255, 200, 0.2);
+      padding: 40px;
+      width: 100%;
+      max-width: 600px;
+      text-align: center;
+      animation: fadeIn 1s ease;
+    }
+    h2 {
+      margin-bottom: 25px;
+      font-size: 28px;
+      letter-spacing: 1px;
+      color: #00ffc3;
+    }
+    label {
+      font-size: 16px;
+      display: block;
+      margin-top: 20px;
+      margin-bottom: 5px;
+      color: #ccc;
+      text-align: left;
+    }
+    textarea, input[type="text"] {
+      width: 100%;
+      padding: 18px;
+      margin-bottom: 12px;
+      background-color: rgba(255, 255, 255, 0.1);
+      border: 1px solid #00ffc3;
+      border-radius: 10px;
+      font-size: 16px;
+      color: white;
+      outline: none;
+      transition: all 0.3s ease;
+    }
+    textarea:focus, input[type="text"]:focus {
+      background-color: rgba(0, 255, 195, 0.1);
+      box-shadow: 0 0 10px #00ffc3;
+    }
+    textarea {
+      resize: vertical;
+    }
+    button {
+      margin-top: 10px;
+      padding: 18px;
+      width: 100%;
+      background: linear-gradient(90deg, #00ffc3, #00b3ff);
+      border: none;
+      border-radius: 10px;
+      color: black;
+      font-weight: bold;
+      font-size: 18px;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    button:hover {
+      transform: scale(1.03);
+      box-shadow: 0 0 20px #00ffc3;
+    }
+    button + button {
+      margin-top: 10px;
+    }
+    .result {
+      margin-top: 30px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      border-left: 4px solid #00ffc3;
+      text-align: left;
+      font-size: 16px;
+      animation: fadeIn 0.6s ease;
+      display: none;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .flag {
+      text-align: center;
+      margin-top: 15px;
+    }
+    .flag img {
+      width: 60px;
+      height: auto;
+      filter: drop-shadow(0 0 5px #00ffc3);
+    }
+    .progress {
+      margin-top: 15px;
+      width: 100%;
+      background-color: #1f1f1f;
+      border-radius: 10px;
+      overflow: hidden;
+      height: 12px;
+      display: none;
+    }
+    .progress-bar {
+      height: 12px;
+      width: 0%;
+      background: linear-gradient(90deg, #00ffc3, #00b3ff);
+      transition: width 0.4s ease;
+    }
+    #toggleResults {
+      margin-top: 10px;
+      background: transparent;
+      border: 1px solid #00ffc3;
+      color: #00ffc3;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Verificador de Tarjetas</h2>
+    <form id="cardForm">
+      <label for="cardData">Ingresa hasta 100 tarjetas (una por línea):</label>
+      <textarea id="cardData" rows="10" placeholder="123456|12|25|123\n456789|10|26|321" required></textarea>
+      <button type="submit">Verificar</button>
+    </form>
+
+    <div class="progress" id="progress">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <div class="result" id="result"></div>
+    <button id="toggleResults" style="display: none;">Expandir Resultados</button>
+
+    <h2>Enviar a Telegram</h2>
+    <label for="botToken">Bot Token:</label>
+    <input type="text" id="botToken" placeholder="Tu Bot Token" required>
+    <label for="chatId">Chat ID:</label>
+    <input type="text" id="chatId" placeholder="Tu Chat ID" required>
+    <button id="sendToTelegram">Enviar a Telegram</button>
+    <button id="copyResults">Copiar Resultados</button>
+  </div>
+
+  <script>
+    let allResults = [];
+
+    document.getElementById('cardForm').addEventListener('submit', async function (event) {
+      event.preventDefault();
+      const cardInput = document.getElementById('cardData').value.trim();
+      const cards = cardInput.split('\n').map(line => line.trim()).filter(line => line !== '');
+      const progressBar = document.getElementById('progressBar');
+      const progressDiv = document.getElementById('progress');
+      const resultDiv = document.getElementById('result');
+      const toggleBtn = document.getElementById('toggleResults');
+
+      if (cards.length === 0 || cards.length > 100) {
+        alert("Debes ingresar entre 1 y 100 tarjetas.");
+        return;
+      }
+
+      resultDiv.innerHTML = "";
+      allResults = [];
+      progressDiv.style.display = 'block';
+      progressBar.style.width = '0%';
+
+      for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
+        try {
+          const response = await fetch('/api/verificar_tarjeta', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cardData: card })
+          });
+          const data = await response.json();
+          let resultHtml = "";
+          if (data.error) {
+            resultHtml = `<div style="color: red;"><strong>Error:</strong> ${data.error} (${card})</div>`;
+          } else {
+            const textResult = `CARD -» ${data.card}\nBRAND -» ${data.brand}\nBANK -» ${data.bank}\nCOUNTRY -» ${data.country}\nBIN -» ${data.bin}\nBY -» RETRY404 💎`;
+            allResults.push(textResult.trim());
+            resultHtml = `<div style="margin-bottom: 20px;"><strong>Card:</strong> ${data.card}<br><strong>Brand:</strong> ${data.brand}<br><strong>Bank:</strong> ${data.bank}<br><strong>Country:</strong> ${data.country}<br><strong>BIN:</strong> ${data.bin}<br>${data.flag && data.flag !== "No encontrado" ? `<div class="flag"><img src="${data.flag}" alt="Bandera"></div>` : ""}</div>`;
+          }
+          resultDiv.innerHTML += resultHtml;
+          resultDiv.style.display = 'block';
+        } catch (error) {
+          resultDiv.innerHTML += `<div style="color: red;"><strong>Error:</strong> Falló la comunicación para ${card}</div>`;
+        }
+        progressBar.style.width = `${((i + 1) / cards.length) * 100}%`;
+      }
+      setTimeout(() => progressDiv.style.display = 'none', 500);
+
+      // Mostrar botón de expandir
+      toggleBtn.style.display = 'block';
+      toggleBtn.innerText = "Expandir Resultados";
+      resultDiv.style.maxHeight = '300px';
+    });
+
+    document.getElementById('toggleResults').addEventListener('click', function () {
+      const resultDiv = document.getElementById('result');
+      const toggleBtn = document.getElementById('toggleResults');
+      if (resultDiv.style.maxHeight === '300px') {
+        resultDiv.style.maxHeight = 'none';
+        toggleBtn.innerText = 'Contraer Resultados';
+      } else {
+        resultDiv.style.maxHeight = '300px';
+        toggleBtn.innerText = 'Expandir Resultados';
+      }
+    });
+
+    document.getElementById('sendToTelegram').addEventListener('click', async function () {
+      const botToken = document.getElementById('botToken').value;
+      const chatId = document.getElementById('chatId').value;
+      if (!botToken || !chatId || allResults.length === 0) {
+        alert("Por favor, completa todos los campos y verifica al menos una tarjeta antes de enviar.");
+        return;
+      }
+      for (let result of allResults) {
+        const message = encodeURIComponent(result.replace(/\n/g, '\n'));
+        const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${message}`;
+        try {
+          const response = await fetch(telegramUrl);
+          const data = await response.json();
+          if (!data.ok) {
+            console.warn("Fallo al enviar mensaje:", data.description);
+          }
+          await new Promise(resolve => setTimeout(resolve, 700));
+        } catch (err) {
+          console.error("Error al enviar a Telegram:", err);
+        }
+      }
+      alert("Todos los resultados fueron enviados a Telegram.");
+    });
+
+    document.getElementById('copyResults').addEventListener('click', function () {
+      if (allResults.length === 0) {
+        alert("No hay resultados para copiar.");
+        return;
+      }
+      const fullText = allResults.join('\n\n');
+      navigator.clipboard.writeText(fullText)
+        .then(() => alert("Resultados copiados al portapapeles."))
+        .catch(err => {
+          console.error("Error al copiar:", err);
+          alert("Error al copiar al portapapeles.");
+        });
+    });
+  </script>
+</body>
+</html>
