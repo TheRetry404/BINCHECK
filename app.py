@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, render_template
 import requests
 from bs4 import BeautifulSoup
+import os
 
 app = Flask(__name__)
 
@@ -16,12 +17,9 @@ def obtener_detalles_tarjeta(entrada):
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             brand_info = []
-            country_info = "No encontrado"  # Inicializa la variable para el país
-            flag_url = "No encontrado"  # Inicializa la variable para la URL de la bandera
-            
-            # Imprime el HTML para depuración
-            print(soup.prettify())  # Esto te mostrará el HTML completo que estás analizando
-            
+            country_info = "No encontrado"
+            flag_url = "No encontrado"
+
             for row in soup.find_all('tr'):
                 cols = row.find_all('td')
                 if len(cols) > 1:
@@ -33,17 +31,14 @@ def obtener_detalles_tarjeta(entrada):
                         brand_info.append(cols[1].text.strip())
                     elif 'Nombre del emisor / Banco' in cols[0].text:
                         bank_name = cols[1].text.strip()
-                        print(f"Banco encontrado: {bank_name}")  # Imprime el banco encontrado
                         country_info = "UNITED STATES" if "BANK" in bank_name else "No encontrado"
 
-            # Obtener el nombre del banco y el país
             bank_info = soup.find('td', string=lambda x: x and 'Nombre del emisor / Banco' in x)
             bank_info_value = bank_info.find_next('td').text.strip() if bank_info else "No encontrado"
 
             country_iso_name = soup.find('td', string=lambda x: x and 'Nombre de país ISO' in x)
             country_iso_value = country_iso_name.find_next('td').text.strip() if country_iso_name else "No encontrado"
 
-            # Obtener la URL de la bandera
             flag_info = soup.find('td', string=lambda x: x and 'Bandera del país' in x)
             if flag_info:
                 flag_img = flag_info.find_next('td').find('img')
@@ -53,9 +48,9 @@ def obtener_detalles_tarjeta(entrada):
                 "card": entrada,
                 "brand": ' - '.join(brand_info),
                 "bank": bank_info_value,
-                "country": country_iso_value,  # Usa el país extraído
-                "flag": flag_url,  # Agrega la URL de la bandera
-                "bin": primeros_seis_digitos  # Ajusta esto si es necesario
+                "country": country_iso_value,
+                "flag": flag_url,
+                "bin": primeros_seis_digitos
             }
         else:
             return {"error": f"Error al obtener detalles: {response.status_code}"}
@@ -64,7 +59,7 @@ def obtener_detalles_tarjeta(entrada):
 
 @app.route('/')
 def index():
-    return render_template('index.html')  # Renderiza el archivo HTML
+    return render_template('index.html')
 
 @app.route('/api/verificar_tarjeta', methods=['POST'])
 def verificar_tarjeta():
@@ -77,8 +72,9 @@ def verificar_tarjeta():
         else:
             return jsonify({"error": "No se proporcionaron datos de tarjeta."}), 400
     except Exception as e:
-        print(f"Ocurrió un error: {e}")
         return jsonify({"error": str(e)}), 500
 
+# ✅ Bloque necesario para que Render detecte y publique la app
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
