@@ -74,6 +74,30 @@ def verificar_tarjeta():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# ========= NUEVO: envío a Telegram por backend (POST JSON) =========
+@app.route('/api/send_telegram', methods=['POST'])
+def send_telegram():
+    try:
+        data = request.get_json(force=True)
+        bot_token = (data.get('botToken') or '').replace('\u200b','').replace('\ufeff','').strip()
+        chat_id   = (data.get('chatId') or '').strip()
+        text      = data.get('text') or ''
+
+        if not bot_token or not chat_id or not text:
+            return jsonify({"ok": False, "description": "Faltan botToken/chatId/text"}), 400
+
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        r = requests.post(url, json={"chat_id": chat_id, "text": text}, timeout=15)
+
+        try:
+            payload = r.json()
+        except Exception:
+            payload = {"ok": False, "description": f"Respuesta no JSON ({r.status_code})", "raw": r.text}
+
+        return jsonify(payload), r.status_code
+    except Exception as e:
+        return jsonify({"ok": False, "description": str(e)}), 500
+
 # ✅ Bloque necesario para que Render detecte y publique la app
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 10000))
