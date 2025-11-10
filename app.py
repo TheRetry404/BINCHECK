@@ -1,52 +1,52 @@
 from flask import Flask, request, jsonify, render_template
 import requests
-from bs4 import BeautifulSoup
 import os
 
 app = Flask(__name__)
 
+# --- INICIO DE LA FUNCIÓN OBTENER_DETALLES_TARJETA ACTUALIZADA ---
 def obtener_detalles_tarjeta(entrada):
     numero_tarjeta = entrada.split('|')[0]
     primeros_seis_digitos = numero_tarjeta[:6]
-    url = f"https://bincheck.io/es/details/{primeros_seis_digitos}"
+    
+    # --- NUEVA CONFIGURACIÓN DE LA API DE RAPIDAPI ---
+    url = "https://bin-info.p.rapidapi.com/bin.php"
+    
+    # IMPORTANTE: Estas son las keys proporcionadas en tu solicitud. 
+    # En un entorno real, las keys secretas se deben manejar como variables de entorno.
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'x-rapidapi-host': "bin-info.p.rapidapi.com",
+        'x-rapidapi-key': "a0f3fde9d1msh7927a2350950bd0p1fc2f7jsnebcb52da28ab"
     }
+    
+    querystring = {"bin": primeros_seis_digitos}
+    
     try:
-        response = requests.get(url, headers=headers)
+        # Hacemos una solicitud GET a la nueva API
+        response = requests.get(url, headers=headers, params=querystring, timeout=10)
+        
         if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            brand_info = []
-            country_info = "No encontrado"
-            flag_url = "No encontrado"
-
-            for row in soup.find_all('tr'):
-                cols = row.find_all('td')
-                if len(cols) > 1:
-                    if 'Marca de carro' in cols[0].text:
-                        brand_info.append(cols[1].text.strip())
-                    elif 'Tipo de tarjeta' in cols[0].text:
-                        brand_info.append(cols[1].text.strip())
-                    elif 'Nivel de tarjeta' in cols[0].text:
-                        brand_info.append(cols[1].text.strip())
-                    elif 'Nombre del emisor / Banco' in cols[0].text:
-                        bank_name = cols[1].text.strip()
-                        country_info = "UNITED STATES" if "BANK" in bank_name else "No encontrado"
-
-            bank_info = soup.find('td', string=lambda x: x and 'Nombre del emisor / Banco' in x)
-            bank_info_value = bank_info.find_next('td').text.strip() if bank_info else "No encontrado"
-
-            country_iso_name = soup.find('td', string=lambda x: x and 'Nombre de país ISO' in x)
-            country_iso_value = country_iso_name.find_next('td').text.strip() if country_iso_name else "No encontrado"
-
-            flag_info = soup.find('td', string=lambda x: x and 'Bandera del país' in x)
-            if flag_info:
-                flag_img = flag_info.find_next('td').find('img')
-                flag_url = flag_img['src'] if flag_img else "No encontrado"
+            # La respuesta es un JSON, no HTML
+            data = response.json()
+            
+            # Mapeo de los datos obtenidos de la API al formato de salida deseado
+            # Usamos .get() para evitar errores si un campo no existe
+            
+            # Para 'Brand', unimos brand, type y category
+            brand_info = f"{data.get('brand', 'N/A')} - {data.get('type', 'N/A')} - {data.get('category', 'N/A')}"
+            
+            # Para 'Bank', usamos 'issuer'
+            bank_info_value = data.get('issuer', 'No encontrado')
+            
+            # Para 'Country', usamos el 'country' completo y el código ISO2
+            country_iso_value = f"{data.get('country', 'No encontrado')} - {data.get('iso2', 'N/A')}"
+            
+            # La nueva API no proporciona la URL de la bandera.
+            flag_url = "No encontrado" 
 
             return {
                 "card": entrada,
-                "brand": ' - '.join(brand_info),
+                "brand": brand_info,
                 "bank": bank_info_value,
                 "country": country_iso_value,
                 "flag": flag_url,
@@ -56,6 +56,7 @@ def obtener_detalles_tarjeta(entrada):
             return {"error": f"Error al obtener detalles: {response.status_code}"}
     except Exception as e:
         return {"error": str(e)}
+# --- FIN DE LA FUNCIÓN OBTENER_DETALLES_TARJETA ACTUALIZADA ---
 
 @app.route('/')
 def index():
@@ -74,7 +75,7 @@ def verificar_tarjeta():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ========= NUEVO: envío a Telegram por backend (POST JSON) =========
+# ========= ENVÍO A TELEGRAM POR BACKEND (POST JSON) =========
 @app.route('/api/send_telegram', methods=['POST'])
 def send_telegram():
     try:
